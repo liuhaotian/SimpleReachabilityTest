@@ -21,122 +21,96 @@ const html = `
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
-            /* Use a system font stack for maximum compatibility and performance */
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
-        .gauge-bg {
-            fill: #e5e7eb; /* gray-200 */
+        #startButton { transition: all 0.2s ease-in-out; }
+        #startButton:disabled { cursor: not-allowed; opacity: 0.6; }
+        .chart-container { 
+            display: none; /* Use display:none to prevent layout shifts */
+            height: 150px; /* Pre-allocate a fixed space to prevent jump */
+            position: relative;
         }
-        .gauge-fg {
-            fill: #3b82f6; /* blue-500 */
-            transition: transform 0.3s ease-in-out;
-            transform-origin: center bottom;
-        }
-        .gauge-text {
-            font-size: 2.25rem;
-            font-weight: 600;
-            fill: #1f2937; /* gray-800 */
-        }
-        .unit-text {
-            font-size: 1rem;
-            font-weight: 500;
-            fill: #4b5563; /* gray-600 */
-        }
-        #startButton {
-            transition: all 0.2s ease-in-out;
-        }
-        #startButton:disabled {
-            cursor: not-allowed;
-            opacity: 0.6;
-        }
-        .chart-container {
-            display: none;
-        }
-        /* Style for the payload size selector */
-        .size-selector label {
+        
+        /* Style for the custom radio-button-like selectors */
+        .control-group label {
             cursor: pointer;
-            padding: 0.5rem 1rem;
+            padding: 0.5rem 0.75rem;
             border-radius: 0.5rem;
-            background-color: #f3f4f6; /* gray-100 */
-            color: #4b5563; /* gray-600 */
+            background-color: #f3f4f6;
+            color: #4b5563;
             transition: all 0.2s;
-            border: 1px solid #e5e7eb; /* gray-200 */
+            border: 1px solid #e5e7eb;
+            font-size: 0.875rem;
         }
-        .size-selector input:checked + label {
-            background-color: #3b82f6; /* blue-500 */
+        .control-group input:checked + label {
+            background-color: #3b82f6;
             color: white;
             border-color: #3b82f6;
             box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
         }
+        .control-group input:disabled + label {
+             cursor: not-allowed;
+             opacity: 0.5;
+        }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen p-4">
+<body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen p-2 sm:p-4">
 
-    <div class="w-full max-w-2xl mx-auto p-6 md:p-8 bg-white rounded-2xl shadow-lg">
-        <header class="text-center mb-6">
-            <h1 class="text-3xl font-bold text-gray-900">Cloudflare Worker Speed Test</h1>
-            <p class="text-gray-500 mt-1">A lightweight, serverless application to measure your network performance.</p>
+    <div class="w-full max-w-2xl mx-auto p-4 md:p-6 bg-white rounded-2xl shadow-lg">
+        <header class="text-center mb-4 md:mb-6">
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-900">Cloudflare Worker Speed Test</h1>
+            <p class="text-gray-500 text-sm md:text-base mt-1">A lightweight, serverless application to measure your network performance.</p>
         </header>
 
         <main>
-            <!-- Gauge Display -->
-            <div class="mb-8">
-                <svg viewBox="0 0 100 57" class="w-full max-w-xs mx-auto">
-                    <path class="gauge-bg" d="M 5 50 A 45 45 0 0 1 95 50"></path>
-                    <path class="gauge-fg" d="M 5 50 A 45 45 0 0 1 95 50" id="gauge-arc" style="transform: scaleX(0);"></path>
-                    <text x="50" y="45" text-anchor="middle" class="gauge-text" id="gauge-value">0</text>
-                    <text x="50" y="55" text-anchor="middle" class="unit-text" id="gauge-unit">Mbps</text>
-                </svg>
-            </div>
-             <!-- Status Text -->
-            <div class="text-center mb-8 h-6">
-                <p id="statusText" class="text-lg text-gray-600 font-medium"></p>
-            </div>
-
-
             <!-- Results Display -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center mb-8">
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <p class="text-sm font-medium text-gray-500">Ping</p>
-                    <p class="text-2xl font-semibold" id="pingResult">-</p>
-                    <p class="text-sm text-gray-400">ms</p>
+            <div class="grid grid-cols-3 gap-2 md:gap-4 text-center my-8 mb-6">
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <p class="text-xs md:text-sm font-medium text-gray-500">Ping</p>
+                    <p class="text-xl md:text-2xl font-semibold" id="pingResult">-</p>
+                    <p class="text-xs text-gray-400">ms</p>
                 </div>
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <p class="text-sm font-medium text-gray-500">Download</p>
-                    <p class="text-2xl font-semibold" id="downloadResult">-</p>
-                    <p class="text-sm text-gray-400">Mbps</p>
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <p class="text-xs md:text-sm font-medium text-gray-500">Download</p>
+                    <p class="text-xl md:text-2xl font-semibold" id="downloadResult">-</p>
+                    <p class="text-xs text-gray-400"><span id="downloadTag"></span>Mbps</p>
                 </div>
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <p class="text-sm font-medium text-gray-500">Upload</p>
-                    <p class="text-2xl font-semibold" id="uploadResult">-</p>
-                    <p class="text-sm text-gray-400">Mbps</p>
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <p class="text-xs md:text-sm font-medium text-gray-500">Upload</p>
+                    <p class="text-xl md:text-2xl font-semibold" id="uploadResult">-</p>
+                    <p class="text-xs text-gray-400"><span id="uploadTag"></span>Mbps</p>
                 </div>
             </div>
 
             <!-- Chart Display -->
             <div id="chartsContainer" class="space-y-4">
                  <div id="downloadChartContainer" class="chart-container">
-                    <h3 class="text-center text-gray-600 font-medium mb-2">Download Trend (Mbps)</h3>
+                    <h3 class="text-center text-gray-600 font-medium text-sm mb-1">Download Trend (Mbps)</h3>
                     <canvas id="downloadChart"></canvas>
                 </div>
                 <div id="uploadChartContainer" class="chart-container">
-                    <h3 class="text-center text-gray-600 font-medium mb-2">Upload Trend (Mbps)</h3>
+                    <h3 class="text-center text-gray-600 font-medium text-sm mb-1">Upload Trend (Mbps)</h3>
                     <canvas id="uploadChart"></canvas>
                 </div>
             </div>
             
-            <!-- Payload Size Selector -->
-            <div class="mt-8 mb-6">
-                <div class="size-selector flex flex-wrap justify-center gap-2">
+             <!-- Controls -->
+            <div class="mt-6 mb-6 space-y-4">
+                <div class="control-group flex flex-wrap justify-center gap-2">
+                    <input type="radio" id="testFull" name="testType" value="full" class="sr-only" checked>
+                    <label for="testFull">Full Test</label>
+                    <input type="radio" id="testDownload" name="testType" value="download" class="sr-only">
+                    <label for="testDownload">Download</label>
+                    <input type="radio" id="testUpload" name="testType" value="upload" class="sr-only">
+                    <label for="testUpload">Upload</label>
+                </div>
+                <div class="control-group flex flex-wrap justify-center gap-2">
                     <input type="radio" id="size10" name="payloadSize" value="10000000" class="sr-only">
                     <label for="size10">10MB</label>
-                    
                     <input type="radio" id="size25" name="payloadSize" value="25000000" class="sr-only" checked>
                     <label for="size25">25MB</label>
-                    
                     <input type="radio" id="size50" name="payloadSize" value="50000000" class="sr-only">
                     <label for="size50">50MB</label>
-                    
                     <input type="radio" id="size100" name="payloadSize" value="100000000" class="sr-only">
                     <label for="size100">100MB</label>
                 </div>
@@ -152,151 +126,108 @@ const html = `
     </div>
 
     <script>
-        // --- CONFIGURATION ---
         const workerUrl = ''; 
         
-        // --- DOM ELEMENTS ---
-        const startButton = document.getElementById('startButton');
-        const statusText = document.getElementById('statusText');
-        const pingResult = document.getElementById('pingResult');
-        const downloadResult = document.getElementById('downloadResult');
-        const uploadResult = document.getElementById('uploadResult');
-        const gaugeValue = document.getElementById('gauge-value');
-        const gaugeUnit = document.getElementById('gauge-unit');
-        const gaugeArc = document.getElementById('gauge-arc');
-        const downloadChartContainer = document.getElementById('downloadChartContainer');
-        const uploadChartContainer = document.getElementById('uploadChartContainer');
+        const dom = {
+            startButton: document.getElementById('startButton'),
+            pingResult: document.getElementById('pingResult'),
+            downloadResult: document.getElementById('downloadResult'),
+            uploadResult: document.getElementById('uploadResult'),
+            downloadTag: document.getElementById('downloadTag'),
+            uploadTag: document.getElementById('uploadTag'),
+            downloadChartContainer: document.getElementById('downloadChartContainer'),
+            uploadChartContainer: document.getElementById('uploadChartContainer'),
+            controls: document.querySelectorAll('.control-group input'),
+        };
         
-        // --- CHART VARIABLES ---
         let downloadChart, uploadChart;
         
-        // --- HELPER FUNCTIONS ---
         const getSelectedPayloadSize = () => parseInt(document.querySelector('input[name="payloadSize"]:checked').value, 10);
+        const getSelectedTestType = () => document.querySelector('input[name="testType"]:checked').value;
 
-        // --- CHART LOGIC ---
         function createChart(ctx, label) {
             return new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: label,
-                        data: [],
-                        borderColor: '#3b82f6',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                        fill: true,
-                        borderWidth: 2,
-                        tension: 0.4,
-                        pointRadius: 0
-                    }]
-                },
-                options: {
-                    scales: {
-                        x: { display: false },
-                        y: { 
-                            beginAtZero: true,
-                            ticks: {
-                                callback: function(value) { return value + ' Mbps' }
-                            }
-                        }
-                    },
-                    plugins: { legend: { display: false } },
-                    animation: { duration: 200 }
-                }
+                type: 'line', data: { labels: [], datasets: [{ label: label, data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, borderWidth: 2, tension: 0.4, pointRadius: 0 }] },
+                options: { scales: { x: { display: false }, y: { beginAtZero: true, ticks: { callback: (v) => v + ' ' } } }, plugins: { legend: { display: false } }, animation: { duration: 200 }, maintainAspectRatio: false }
             });
         }
         
-        function resetCharts() {
+        function resetUI() {
             if (downloadChart) downloadChart.destroy();
             if (uploadChart) uploadChart.destroy();
-            downloadChart = createChart(document.getElementById('downloadChart').getContext('2d'), 'Download Speed');
-            uploadChart = createChart(document.getElementById('uploadChart').getContext('2d'), 'Upload Speed');
-            downloadChartContainer.style.display = 'none';
-            uploadChartContainer.style.display = 'none';
+            downloadChart = createChart(document.getElementById('downloadChart').getContext('2d'), 'Download');
+            uploadChart = createChart(document.getElementById('uploadChart').getContext('2d'), 'Upload');
+            dom.pingResult.textContent = '-';
+            updateResult(dom.downloadResult, dom.downloadTag, '-');
+            updateResult(dom.uploadResult, dom.uploadTag, '-');
         }
 
-        function addChartData(chart, data) {
-            chart.data.labels.push('');
-            chart.data.datasets[0].data.push(data);
-            chart.update();
+        function updateResult(element, tagElement, value, type = '') {
+            if (value === '-') {
+                element.textContent = '-';
+                tagElement.textContent = '';
+                return;
+            }
+
+            element.textContent = value.toFixed(2);
+            tagElement.textContent = type ? type + ' ' : '';
         }
 
-        // --- GAUGE LOGIC ---
-        const MAX_GAUGE_SPEED = 1000; // Mbps
-        function updateGauge(value, unit) {
-            gaugeValue.textContent = value.toFixed(value < 10 ? 1 : 0);
-            gaugeUnit.textContent = unit;
-            const percentage = Math.min(value / MAX_GAUGE_SPEED, 1);
-            gaugeArc.style.transform = \`scaleX(\${percentage})\`;
+        function addChartData(chart, data) { chart.data.labels.push(''); chart.data.datasets[0].data.push(data); chart.update(); }
+        
+        function setControlsState(disabled) {
+            dom.startButton.disabled = disabled;
+            dom.controls.forEach(input => input.disabled = disabled);
+            dom.startButton.textContent = disabled ? 'Testing...' : 'Start Test';
         }
 
-        // --- TEST LOGIC ---
-        startButton.addEventListener('click', async () => {
-            startButton.disabled = true;
-            document.querySelectorAll('input[name="payloadSize"]').forEach(input => input.disabled = true);
-            startButton.textContent = 'Testing...';
-
-            // Reset UI
-            [pingResult, downloadResult, uploadResult].forEach(el => el.textContent = '-');
-            statusText.classList.remove('text-red-500');
-            updateGauge(0, 'Mbps');
-            resetCharts();
+        dom.startButton.addEventListener('click', async () => {
+            setControlsState(true);
+            const testType = getSelectedTestType();
+            
+            resetUI();
+            
+            // Set chart visibility based on the test type to prevent layout shifts
+            dom.downloadChartContainer.style.display = (testType === 'full' || testType === 'download') ? 'block' : 'none';
+            dom.uploadChartContainer.style.display = (testType === 'full' || testType === 'upload') ? 'block' : 'none';
 
             try {
-                await testPing();
-                await testDownload();
-                await testUpload();
-                statusText.textContent = 'Test complete!';
-                startButton.textContent = 'Run Again';
+                if (testType === 'full' || testType === 'download' || testType === 'upload') await testPing();
+                if (testType === 'full' || testType === 'download') await testDownload();
+                if (testType === 'full' || testType === 'upload') await testUpload();
+                dom.startButton.textContent = 'Run Again';
             } catch (error) {
                 console.error('Speed test failed:', error);
-                statusText.textContent = \`Error: \${error.message}\`;
-                statusText.classList.add('text-red-500');
-                startButton.textContent = 'Try Again';
+                dom.startButton.textContent = 'Try Again';
             } finally {
-                startButton.disabled = false;
-                document.querySelectorAll('input[name="payloadSize"]').forEach(input => input.disabled = false);
+                setControlsState(false);
             }
         });
 
         async function testPing() {
-            statusText.textContent = 'Testing ping...';
-            updateGauge(0, 'ms');
             const pings = [];
-            const pingCount = 5;
-            for (let i = 0; i < pingCount; i++) {
+            for (let i = 0; i < 5; i++) {
                 const startTime = performance.now();
                 try {
                     await fetch(\`\${workerUrl}/ping?nocache=\${Date.now()}\`);
-                    const endTime = performance.now();
-                    pings.push(endTime - startTime);
-                } catch (e) {
-                    console.warn('Ping request failed', e);
-                }
+                    pings.push(performance.now() - startTime);
+                } catch (e) { console.warn('Ping request failed', e); }
                 await new Promise(r => setTimeout(r, 100));
             }
-            if (pings.length === 0) {
-                 throw new Error("Ping test failed. Check worker logs and CORS.");
-            }
+            if (pings.length === 0) throw new Error("Ping test failed.");
             const bestPing = Math.min(...pings);
-            pingResult.textContent = bestPing.toFixed(0);
-            updateGauge(bestPing, 'ms');
+            dom.pingResult.textContent = bestPing.toFixed(0);
         }
 
         async function testDownload() {
-            statusText.textContent = 'Testing download...';
-            updateGauge(0, 'Mbps');
-            downloadChartContainer.style.display = 'block';
-
             const payloadSize = getSelectedPayloadSize();
             const downloadUrl = \`\${workerUrl}/download?size=\${payloadSize}\`; 
-            let bytesReceived = 0;
+            let bytesReceived = 0, lastBytesReceived = 0;
             const startTime = performance.now();
             let lastUpdateTime = startTime;
-            let lastBytesReceived = 0;
             const response = await fetch(downloadUrl);
-            if (!response.ok) throw new Error(\`Download test failed with status \${response.status}\`);
-            if (!response.body) throw new Error('ReadableStream not supported by browser.');
+            if (!response.ok) throw new Error(\`Download test failed: \${response.status}\`);
+            if (!response.body) throw new Error('ReadableStream not supported.');
             const reader = response.body.getReader();
             while (true) {
                 const { done, value } = await reader.read();
@@ -304,76 +235,46 @@ const html = `
                 bytesReceived += value.length;
                 const now = performance.now();
                 if (now - lastUpdateTime > 250) {
-                    const durationSinceLast = (now - lastUpdateTime) / 1000;
-                    const bytesSinceLast = bytesReceived - lastBytesReceived;
-                    const speedMbps = (bytesSinceLast * 8) / (durationSinceLast * 1000 * 1000);
-                    updateGauge(speedMbps, 'Mbps');
+                    const speedMbps = ((bytesReceived - lastBytesReceived) * 8) / ((now - lastUpdateTime) / 1000 * 1000 * 1000);
+                    updateResult(dom.downloadResult, dom.downloadTag, speedMbps, 'Live');
                     addChartData(downloadChart, speedMbps);
-                    lastUpdateTime = now;
-                    lastBytesReceived = bytesReceived;
+                    lastUpdateTime = now; lastBytesReceived = bytesReceived;
                 }
             }
-            const totalDurationSeconds = (performance.now() - startTime) / 1000;
-            const finalSpeedMbps = (bytesReceived * 8) / (totalDurationSeconds * 1000 * 1000);
-            downloadResult.textContent = finalSpeedMbps.toFixed(2);
-            updateGauge(finalSpeedMbps, 'Mbps');
+            const finalSpeedMbps = (bytesReceived * 8) / ((performance.now() - startTime) / 1000 * 1000 * 1000);
+            updateResult(dom.downloadResult, dom.downloadTag, finalSpeedMbps, 'Avg');
         }
 
         function testUpload() {
             return new Promise((resolve, reject) => {
-                statusText.textContent = 'Testing upload...';
-                updateGauge(0, 'Mbps');
-                uploadChartContainer.style.display = 'block';
-
                 const uploadSize = getSelectedPayloadSize();
                 const uploadData = new Blob([new Uint8Array(uploadSize)], { type: 'application/octet-stream' });
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', \`\${workerUrl}/upload\`, true);
                 
-                let startTime = 0;
-                let lastTime = 0;
-                let lastLoaded = 0;
-                
+                let startTime = 0, lastTime = 0, lastLoaded = 0;
                 xhr.upload.onprogress = (event) => {
                     const now = performance.now();
-                    if (startTime === 0) { // First progress event
-                        startTime = now;
-                        lastTime = now;
-                    }
-
+                    if (startTime === 0) { startTime = now; lastTime = now; }
                     if (event.lengthComputable) {
-                        const timeDiffSeconds = (now - lastTime) / 1000;
-                        const bytesDiff = event.loaded - lastLoaded;
-                        
-                        // Update chart at regular intervals to get a smooth line
-                        if (timeDiffSeconds > 0.25) { 
-                            const speedMbps = (bytesDiff * 8) / (timeDiffSeconds * 1000 * 1000);
-                            updateGauge(speedMbps, 'Mbps');
+                        const timeDiff = (now - lastTime) / 1000;
+                        if (timeDiff > 0.25) { 
+                            const speedMbps = ((event.loaded - lastLoaded) * 8) / (timeDiff * 1000 * 1000);
+                            updateResult(dom.uploadResult, dom.uploadTag, speedMbps, 'Live');
                             addChartData(uploadChart, speedMbps);
-                            
-                            lastTime = now;
-                            lastLoaded = event.loaded;
+                            lastTime = now; lastLoaded = event.loaded;
                         }
                     }
                 };
-
                 xhr.onload = () => {
                     if (xhr.status >= 200 && xhr.status < 300) {
-                        const now = performance.now();
-                        // If onprogress didn't fire, startTime will be 0. Handle this case.
-                        if(startTime === 0) startTime = now - 1; // Assume a tiny duration
-
-                        const durationSeconds = (now - startTime) / 1000;
-                        const finalSpeedMbps = (uploadSize * 8) / (durationSeconds * 1000 * 1000);
-                        uploadResult.textContent = finalSpeedMbps.toFixed(2);
-                        updateGauge(finalSpeedMbps, 'Mbps');
+                        const duration = (performance.now() - startTime) / 1000;
+                        const finalSpeedMbps = (uploadSize * 8) / (duration * 1000 * 1000);
+                        updateResult(dom.uploadResult, dom.uploadTag, finalSpeedMbps, 'Avg');
                         resolve();
-                    } else {
-                        reject(new Error(\`Upload test failed with status \${xhr.status}\`));
-                    }
+                    } else { reject(new Error(\`Upload test failed: \${xhr.status}\`)); }
                 };
-
-                xhr.onerror = () => reject(new Error('Upload test failed due to a network error.'));
+                xhr.onerror = () => reject(new Error('Upload failed due to network error.'));
                 xhr.send(uploadData);
             });
         }
