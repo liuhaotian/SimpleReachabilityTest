@@ -20,8 +20,13 @@ const html = `
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        html, body {
+            height: 100%;
+        }
         body {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            min-height: 100vh; /* Fallback for older browsers */
+            min-height: 100dvh; /* Modern, iOS-friendly height */
         }
         #startButton { transition: all 0.2s ease-in-out; }
         #startButton:disabled { cursor: not-allowed; opacity: 0.6; }
@@ -54,17 +59,17 @@ const html = `
         }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen p-2 sm:p-4">
+<body class="bg-gray-100 text-gray-800 flex items-center justify-center">
 
-    <div class="w-full max-w-2xl mx-auto p-4 md:p-6 bg-white rounded-2xl shadow-lg">
-        <header class="text-center mb-4 md:mb-6">
+    <div class="w-full max-w-2xl mx-4 p-4 md:p-6 bg-white rounded-2xl shadow-lg">
+        <header class="text-center mb-6">
             <h1 class="text-2xl md:text-3xl font-bold text-gray-900">Cloudflare Worker Speed Test</h1>
             <p class="text-gray-500 text-sm md:text-base mt-1">A lightweight, serverless application to measure your network performance.</p>
         </header>
 
-        <main>
+        <main class="space-y-6">
             <!-- Results Display -->
-            <div class="grid grid-cols-3 gap-2 md:gap-4 text-center my-8 mb-6">
+            <div class="grid grid-cols-3 gap-2 md:gap-4 text-center">
                 <div class="bg-gray-50 p-3 rounded-lg">
                     <p class="text-xs md:text-sm font-medium text-gray-500">Ping</p>
                     <p class="text-xl md:text-2xl font-semibold" id="pingResult">-</p>
@@ -95,7 +100,7 @@ const html = `
             </div>
             
              <!-- Controls -->
-            <div class="mt-6 mb-6 space-y-4">
+            <div class="space-y-4">
                 <div class="control-group flex flex-wrap justify-center gap-2">
                     <input type="radio" id="testFull" name="testType" value="full" class="sr-only" checked>
                     <label for="testFull">Full Test</label>
