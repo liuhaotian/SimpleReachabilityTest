@@ -18,6 +18,7 @@ const html = `
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cloudflare Speed Test</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             /* Use a system font stack for maximum compatibility and performance */
@@ -47,6 +48,9 @@ const html = `
         #startButton:disabled {
             cursor: not-allowed;
             opacity: 0.6;
+        }
+        .chart-container {
+            display: none;
         }
     </style>
 </head>
@@ -93,8 +97,20 @@ const html = `
                 </div>
             </div>
 
+            <!-- Chart Display -->
+            <div id="chartsContainer" class="space-y-4">
+                 <div id="downloadChartContainer" class="chart-container">
+                    <h3 class="text-center text-gray-600 font-medium mb-2">Download Trend (Mbps)</h3>
+                    <canvas id="downloadChart"></canvas>
+                </div>
+                <div id="uploadChartContainer" class="chart-container">
+                    <h3 class="text-center text-gray-600 font-medium mb-2">Upload Trend (Mbps)</h3>
+                    <canvas id="uploadChart"></canvas>
+                </div>
+            </div>
+
             <!-- Start Button -->
-            <div class="text-center">
+            <div class="text-center mt-8">
                 <button id="startButton" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 transform hover:scale-105">
                     Start Test
                 </button>
@@ -104,8 +120,6 @@ const html = `
 
     <script>
         // --- CONFIGURATION ---
-        // Since the HTML is served from the worker, the API is on the same origin.
-        // An empty string makes the fetch requests relative to the current path.
         const workerUrl = ''; 
         
         // --- DOM ELEMENTS ---
@@ -117,6 +131,59 @@ const html = `
         const gaugeValue = document.getElementById('gauge-value');
         const gaugeUnit = document.getElementById('gauge-unit');
         const gaugeArc = document.getElementById('gauge-arc');
+        const downloadChartContainer = document.getElementById('downloadChartContainer');
+        const uploadChartContainer = document.getElementById('uploadChartContainer');
+        
+        // --- CHART VARIABLES ---
+        let downloadChart, uploadChart;
+
+        // --- CHART LOGIC ---
+        function createChart(ctx, label) {
+            return new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: label,
+                        data: [],
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.4,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: { display: false },
+                        y: { 
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) { return value + ' Mbps' }
+                            }
+                        }
+                    },
+                    plugins: { legend: { display: false } },
+                    animation: { duration: 200 }
+                }
+            });
+        }
+        
+        function resetCharts() {
+            if (downloadChart) downloadChart.destroy();
+            if (uploadChart) uploadChart.destroy();
+            downloadChart = createChart(document.getElementById('downloadChart').getContext('2d'), 'Download Speed');
+            uploadChart = createChart(document.getElementById('uploadChart').getContext('2d'), 'Upload Speed');
+            downloadChartContainer.style.display = 'none';
+            uploadChartContainer.style.display = 'none';
+        }
+
+        function addChartData(chart, data) {
+            chart.data.labels.push('');
+            chart.data.datasets[0].data.push(data);
+            chart.update();
+        }
 
         // --- GAUGE LOGIC ---
         const MAX_GAUGE_SPEED = 1000; // Mbps
@@ -136,6 +203,7 @@ const html = `
             [pingResult, downloadResult, uploadResult].forEach(el => el.textContent = '-');
             statusText.classList.remove('text-red-500');
             updateGauge(0, 'Mbps');
+            resetCharts();
 
             try {
                 await testPing();
@@ -180,6 +248,8 @@ const html = `
         async function testDownload() {
             statusText.textContent = 'Testing download...';
             updateGauge(0, 'Mbps');
+            downloadChartContainer.style.display = 'block';
+
             const downloadUrl = \`\${workerUrl}/download?size=25000000\`; 
             let bytesReceived = 0;
             const startTime = performance.now();
@@ -199,6 +269,7 @@ const html = `
                     const bytesSinceLast = bytesReceived - lastBytesReceived;
                     const speedMbps = (bytesSinceLast * 8) / (durationSinceLast * 1000 * 1000);
                     updateGauge(speedMbps, 'Mbps');
+                    addChartData(downloadChart, speedMbps);
                     lastUpdateTime = now;
                     lastBytesReceived = bytesReceived;
                 }
@@ -213,18 +284,26 @@ const html = `
             return new Promise((resolve, reject) => {
                 statusText.textContent = 'Testing upload...';
                 updateGauge(0, 'Mbps');
+                uploadChartContainer.style.display = 'block';
+
                 const uploadSize = 10 * 1024 * 1024;
                 const uploadData = new Blob([new Uint8Array(uploadSize)], { type: 'application/octet-stream' });
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', \`\${workerUrl}/upload\`, true);
                 let startTime;
+                
                 xhr.upload.onprogress = (event) => {
                     if (!startTime) startTime = performance.now();
                     if (event.lengthComputable) {
                         const speedMbps = (event.loaded * 8) / ((performance.now() - startTime) / 1000 * 1000 * 1000);
                         updateGauge(speedMbps, 'Mbps');
+                        // Limit chart updates to avoid performance issues
+                        if (uploadChart.data.datasets[0].data.length % 2 === 0) {
+                            addChartData(uploadChart, speedMbps);
+                        }
                     }
                 };
+
                 xhr.onload = () => {
                     if (xhr.status >= 200 && xhr.status < 300) {
                         const durationSeconds = (performance.now() - startTime) / 1000;
