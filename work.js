@@ -286,27 +286,45 @@ const html = `
                 updateGauge(0, 'Mbps');
                 uploadChartContainer.style.display = 'block';
 
-                const uploadSize = 10 * 1024 * 1024;
+                const uploadSize = 10 * 1024 * 1024; // 10MB
                 const uploadData = new Blob([new Uint8Array(uploadSize)], { type: 'application/octet-stream' });
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', \`\${workerUrl}/upload\`, true);
-                let startTime;
+                
+                let startTime = 0;
+                let lastTime = 0;
+                let lastLoaded = 0;
                 
                 xhr.upload.onprogress = (event) => {
-                    if (!startTime) startTime = performance.now();
+                    const now = performance.now();
+                    if (startTime === 0) { // First progress event
+                        startTime = now;
+                        lastTime = now;
+                    }
+
                     if (event.lengthComputable) {
-                        const speedMbps = (event.loaded * 8) / ((performance.now() - startTime) / 1000 * 1000 * 1000);
-                        updateGauge(speedMbps, 'Mbps');
-                        // Limit chart updates to avoid performance issues
-                        if (uploadChart.data.datasets[0].data.length % 2 === 0) {
+                        const timeDiffSeconds = (now - lastTime) / 1000;
+                        const bytesDiff = event.loaded - lastLoaded;
+                        
+                        // Update chart at regular intervals to get a smooth line
+                        if (timeDiffSeconds > 0.25) { 
+                            const speedMbps = (bytesDiff * 8) / (timeDiffSeconds * 1000 * 1000);
+                            updateGauge(speedMbps, 'Mbps');
                             addChartData(uploadChart, speedMbps);
+                            
+                            lastTime = now;
+                            lastLoaded = event.loaded;
                         }
                     }
                 };
 
                 xhr.onload = () => {
                     if (xhr.status >= 200 && xhr.status < 300) {
-                        const durationSeconds = (performance.now() - startTime) / 1000;
+                        const now = performance.now();
+                        // If onprogress didn't fire, startTime will be 0. Handle this case.
+                        if(startTime === 0) startTime = now - 1; // Assume a tiny duration
+
+                        const durationSeconds = (now - startTime) / 1000;
                         const finalSpeedMbps = (uploadSize * 8) / (durationSeconds * 1000 * 1000);
                         uploadResult.textContent = finalSpeedMbps.toFixed(2);
                         updateGauge(finalSpeedMbps, 'Mbps');
@@ -315,6 +333,7 @@ const html = `
                         reject(new Error(\`Upload test failed with status \${xhr.status}\`));
                     }
                 };
+
                 xhr.onerror = () => reject(new Error('Upload test failed due to a network error.'));
                 xhr.send(uploadData);
             });
