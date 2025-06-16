@@ -52,9 +52,25 @@ const html = `
         .chart-container {
             display: none;
         }
+        /* Style for the payload size selector */
+        .size-selector label {
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            background-color: #f3f4f6; /* gray-100 */
+            color: #4b5563; /* gray-600 */
+            transition: all 0.2s;
+            border: 1px solid #e5e7eb; /* gray-200 */
+        }
+        .size-selector input:checked + label {
+            background-color: #3b82f6; /* blue-500 */
+            color: white;
+            border-color: #3b82f6;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen">
+<body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen p-4">
 
     <div class="w-full max-w-2xl mx-auto p-6 md:p-8 bg-white rounded-2xl shadow-lg">
         <header class="text-center mb-6">
@@ -108,9 +124,26 @@ const html = `
                     <canvas id="uploadChart"></canvas>
                 </div>
             </div>
+            
+            <!-- Payload Size Selector -->
+            <div class="mt-8 mb-6">
+                <div class="size-selector flex flex-wrap justify-center gap-2">
+                    <input type="radio" id="size10" name="payloadSize" value="10000000" class="sr-only">
+                    <label for="size10">10MB</label>
+                    
+                    <input type="radio" id="size25" name="payloadSize" value="25000000" class="sr-only" checked>
+                    <label for="size25">25MB</label>
+                    
+                    <input type="radio" id="size50" name="payloadSize" value="50000000" class="sr-only">
+                    <label for="size50">50MB</label>
+                    
+                    <input type="radio" id="size100" name="payloadSize" value="100000000" class="sr-only">
+                    <label for="size100">100MB</label>
+                </div>
+            </div>
 
             <!-- Start Button -->
-            <div class="text-center mt-8">
+            <div class="text-center">
                 <button id="startButton" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 transform hover:scale-105">
                     Start Test
                 </button>
@@ -136,6 +169,9 @@ const html = `
         
         // --- CHART VARIABLES ---
         let downloadChart, uploadChart;
+        
+        // --- HELPER FUNCTIONS ---
+        const getSelectedPayloadSize = () => parseInt(document.querySelector('input[name="payloadSize"]:checked').value, 10);
 
         // --- CHART LOGIC ---
         function createChart(ctx, label) {
@@ -197,6 +233,7 @@ const html = `
         // --- TEST LOGIC ---
         startButton.addEventListener('click', async () => {
             startButton.disabled = true;
+            document.querySelectorAll('input[name="payloadSize"]').forEach(input => input.disabled = true);
             startButton.textContent = 'Testing...';
 
             // Reset UI
@@ -218,6 +255,7 @@ const html = `
                 startButton.textContent = 'Try Again';
             } finally {
                 startButton.disabled = false;
+                document.querySelectorAll('input[name="payloadSize"]').forEach(input => input.disabled = false);
             }
         });
 
@@ -250,7 +288,8 @@ const html = `
             updateGauge(0, 'Mbps');
             downloadChartContainer.style.display = 'block';
 
-            const downloadUrl = \`\${workerUrl}/download?size=25000000\`; 
+            const payloadSize = getSelectedPayloadSize();
+            const downloadUrl = \`\${workerUrl}/download?size=\${payloadSize}\`; 
             let bytesReceived = 0;
             const startTime = performance.now();
             let lastUpdateTime = startTime;
@@ -286,7 +325,7 @@ const html = `
                 updateGauge(0, 'Mbps');
                 uploadChartContainer.style.display = 'block';
 
-                const uploadSize = 10 * 1024 * 1024; // 10MB
+                const uploadSize = getSelectedPayloadSize();
                 const uploadData = new Blob([new Uint8Array(uploadSize)], { type: 'application/octet-stream' });
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', \`\${workerUrl}/upload\`, true);
@@ -396,7 +435,7 @@ export default {
 
 function handleDownload(request) {
   const url = new URL(request.url);
-  const requestedSize = parseInt(url.searchParams.get('size') || '10000000', 10);
+  const requestedSize = parseInt(url.searchParams.get('size') || '25000000', 10);
   const size = Math.min(requestedSize, 100 * 1024 * 1024); // Cap at 100MB
   let bytesSent = 0;
   const chunkSize = 16 * 1024; // 16KB
