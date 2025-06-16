@@ -130,6 +130,7 @@ const html = `
                                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Domain</th>
                                 <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Cloudflare DNS</th>
                                 <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Google DNS</th>
+                                <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">HTTP Ping (Avg)</th>
                             </tr>
                         </thead>
                         <tbody id="reachabilityResultsBody" class="bg-white divide-y divide-gray-200"></tbody>
@@ -291,6 +292,13 @@ const html = `
             cloudflare: 'https://cloudflare-dns.com/dns-query',
             google: 'https://dns.google/resolve',
         };
+        const PING_TARGETS = {
+            'google.com': 'https://www.google.com/gen_204',
+            'youtube.com': 'https://www.youtube.com/generate_204',
+            'facebook.com': 'https://www.facebook.com/images/blank.gif',
+            'default': (domain) => \`https://www.\${domain}\`
+        }
+
         async function resolveDoh(domain, provider) {
             const url = \`\${DOH_PROVIDERS[provider]}?name=\${domain}&type=A\`;
             const headers = (provider === 'cloudflare') ? { 'accept': 'application/dns-json' } : {};
@@ -305,6 +313,31 @@ const html = `
                 };
             } catch { return { ip: 'Error', latency: 'N/A' }; }
         }
+
+        async function testHttpLatency(domain) {
+            const PING_COUNT = 3;
+            const latencies = [];
+            const targetUrl = PING_TARGETS[domain] || PING_TARGETS['default'](domain);
+
+            for (let i = 0; i < PING_COUNT; i++) {
+                const url = \`\${targetUrl}?t=\${Date.now()}+\${Math.random()}\`;
+                const startTime = performance.now();
+                try {
+                    await fetch(url, { mode: 'no-cors', cache: 'no-store' });
+                    latencies.push(performance.now() - startTime);
+                } catch (e) {
+                    // This error is expected for no-cors, but if fetch itself fails, we skip.
+                }
+                if (i < PING_COUNT - 1) {
+                    await new Promise(r => setTimeout(r, 200)); // Small delay between pings
+                }
+            }
+
+            if (latencies.length === 0) return 'Error';
+            
+            const avgLatency = latencies.reduce((a, b) => a + b, 0) / latencies.length;
+            return avgLatency.toFixed(0);
+        }
         
         async function runReachabilityTest() {
             dom.reachabilityResultsBody.innerHTML = '';
@@ -316,15 +349,22 @@ const html = `
                     <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">\${domain}</td>
                     <td class="px-4 py-3 text-center text-sm" id="cf-\${domain}">…</td>
                     <td class="px-4 py-3 text-center text-sm" id="gg-\${domain}">…</td>
+                    <td class="px-4 py-3 text-center text-sm" id="ping-\${domain}">…</td>
                 \`;
                 dom.reachabilityResultsBody.appendChild(row);
 
-                // Run tests in parallel for each row
-                Promise.all([resolveDoh(domain, 'cloudflare'), resolveDoh(domain, 'google')])
-                    .then(([cf, gg]) => {
-                        document.getElementById(\`cf-\${domain}\`).innerHTML = \`\${cf.ip}<br><span class="text-xs text-gray-500">\${cf.latency} ms</span>\`;
-                        document.getElementById(\`gg-\${domain}\`).innerHTML = \`\${gg.ip}<br><span class="text-xs text-gray-500">\${gg.latency} ms</span>\`;
-                    });
+                // Run each test individually and update UI as it completes for resilience
+                resolveDoh(domain, 'cloudflare').then(cf => {
+                    document.getElementById(\`cf-\${domain}\`).innerHTML = \`\${cf.ip}<br><span class="text-xs text-gray-500">\${cf.latency} ms</span>\`;
+                });
+                
+                resolveDoh(domain, 'google').then(gg => {
+                    document.getElementById(\`gg-\${domain}\`).innerHTML = \`\${gg.ip}<br><span class="text-xs text-gray-500">\${gg.latency} ms</span>\`;
+                });
+                
+                testHttpLatency(domain).then(ping => {
+                    document.getElementById(\`ping-\${domain}\`).textContent = (ping !== 'Error') ? \`\${ping} ms\` : 'Error';
+                });
             }
         }
         
