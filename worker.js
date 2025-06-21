@@ -5,6 +5,7 @@
  *
  * API Routes:
  * - /: Serves the main HTML user interface.
+ * - /ip: Returns the client's IP address and country.
  * - /ping: Responds with a minimal payload to measure latency.
  * - /download: Streams a configurable amount of random data.
  * - /upload: Accepts and discards POST data to measure upload speed.
@@ -58,7 +59,7 @@ const html = `
     <div class="w-full max-w-4xl mx-auto p-4 md:p-6 bg-white rounded-2xl shadow-lg">
         <header class="text-center mb-6">
             <h1 class="text-2xl md:text-3xl font-bold text-gray-900">Network Diagnostic Tool</h1>
-            <p class="text-gray-500 text-sm md:text-base mt-1">Measure network performance with Speed and Reachability tests.</p>
+            <div id="userInfo" class="text-xs text-gray-400 mt-2"></div>
         </header>
 
         <main class="space-y-6">
@@ -155,6 +156,7 @@ const html = `
             appTypeRadios: document.querySelectorAll('input[name="appType"]'),
             speedTestSection: document.getElementById('speedTestSection'),
             reachabilityTestSection: document.getElementById('reachabilityTestSection'),
+            userInfo: document.getElementById('userInfo'),
             
             // Speed Test elements
             pingResult: document.getElementById('pingResult'),
@@ -368,6 +370,16 @@ const html = `
             }
         }
         
+        async function showUserInfo() {
+            try {
+                const response = await fetch('/ip');
+                const data = await response.json();
+                dom.userInfo.textContent = \`Your IP: \${data.ip} | Country: \${data.country}\`;
+            } catch (e) {
+                dom.userInfo.textContent = 'Could not retrieve IP information.';
+            }
+        }
+
         // --- Main Event Listener ---
         dom.startButton.addEventListener('click', async () => {
             setControlsState(true);
@@ -392,6 +404,9 @@ const html = `
                 setControlsState(false);
             }
         });
+        
+        // Initial setup on page load
+        showUserInfo();
     </script>
 </body>
 </html>
@@ -408,6 +423,14 @@ export default {
             case '/':
                 return new Response(html, {
                     headers: { 'Content-Type': 'text/html;charset=UTF-8' },
+                });
+            case '/ip':
+                const ipInfo = {
+                    ip: request.headers.get('cf-connecting-ip') || 'N/A',
+                    country: request.cf ? request.cf.country : 'N/A',
+                };
+                return new Response(JSON.stringify(ipInfo), {
+                    headers: { 'Content-Type': 'application/json' },
                 });
             case '/ping':
                 return new Response(null, { status: 204 });
