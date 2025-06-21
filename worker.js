@@ -298,7 +298,7 @@ const html = `
             'google.com': 'https://www.google.com/gen_204',
             'youtube.com': 'https://www.youtube.com/generate_204',
             'facebook.com': 'https://www.facebook.com/images/blank.gif',
-            'default': (domain) => \`https://www.\${domain}\`
+            'default': (domain) => \`https://www.\${domain}/favicon.ico\`
         }
 
         async function resolveDoh(domain, provider) {
