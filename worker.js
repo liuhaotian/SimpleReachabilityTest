@@ -5,7 +5,7 @@
  *
  * API Routes:
  * - /: Serves the main HTML user interface.
- * - /ip: Returns the client's IP address and country.
+ * - /ip: Returns the client's IP address, country, and city.
  * - /ping: Responds with a minimal payload to measure latency.
  * - /download: Streams a configurable amount of random data.
  * - /upload: Accepts and discards POST data to measure upload speed.
@@ -383,12 +383,36 @@ const html = `
             }
         }
         
+        function countryCodeToEmoji(countryCode) {
+            if (!countryCode || countryCode.length !== 2) {
+                return '';
+            }
+            // Formula to convert a two-letter country code to its regional indicator symbols (emojis)
+            const codePoints = countryCode
+                .toUpperCase()
+                .split('')
+                .map(char => 127397 + char.charCodeAt());
+            return String.fromCodePoint(...codePoints);
+        }
+
         async function showUserInfo() {
             try {
                 const response = await fetch('/ip');
+                if (!response.ok) throw new Error('Failed to fetch IP info');
                 const data = await response.json();
-                dom.userInfo.textContent = \`Your IP: \${data.ip} | Country: \${data.country}\`;
+                
+                const userInfoParts = [];
+                if (data.ip && data.ip !== 'N/A') userInfoParts.push(\`Your IP: \${data.ip}\`);
+                if (data.city && data.city !== 'N/A') userInfoParts.push(\`City: \${data.city}\`);
+                if (data.country && data.country !== 'N/A') {
+                    const flag = countryCodeToEmoji(data.country);
+                    userInfoParts.push(\`Country: \${flag} \${data.country}\`);
+                }
+
+                dom.userInfo.textContent = userInfoParts.length > 0 ? userInfoParts.join(' | ') : 'Could not retrieve IP information.';
+
             } catch (e) {
+                console.error("Failed to show user info:", e);
                 dom.userInfo.textContent = 'Could not retrieve IP information.';
             }
         }
@@ -441,6 +465,7 @@ export default {
                 const ipInfo = {
                     ip: request.headers.get('cf-connecting-ip') || 'N/A',
                     country: request.cf ? request.cf.country : 'N/A',
+                    city: request.cf ? request.cf.city : 'N/A',
                 };
                 return new Response(JSON.stringify(ipInfo), {
                     headers: { 'Content-Type': 'application/json' },
