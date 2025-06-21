@@ -343,7 +343,20 @@ const html = `
         
         async function runReachabilityTest() {
             dom.reachabilityResultsBody.innerHTML = '';
-            const domains = ['google.com', 'youtube.com', 'facebook.com', 'tiktok.com', 'baidu.com'];
+            const domains = [
+                // Global & US
+                'google.com',
+                'youtube.com',
+                'facebook.com',
+                'amazon.com',
+                'wikipedia.org',
+                // China & Global
+                'baidu.com',
+                'qq.com',
+                'taobao.com',
+                'bilibili.com',
+                'tiktok.com'
+            ];
             
             for (const domain of domains) {
                 const row = document.createElement('tr');
